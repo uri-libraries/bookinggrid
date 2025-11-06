@@ -1,0 +1,9 @@
+@page "/"
+@namespace BookGrid.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using BookGrid.Components
+@{
+    Layout = "_Layout";
+}
+
+<component type="typeof(BookGrid.Components.App)" render-mode="ServerPrerendered" />

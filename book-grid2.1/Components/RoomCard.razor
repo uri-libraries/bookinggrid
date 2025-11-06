@@ -1,0 +1,371 @@
+@using BookGrid.Models
+
+<div class="room-card @(IsExpanded ? "expanded" : "")" @onclick="OnToggleExpanded">
+    @if (Room.IsAvailableNow)
+    {
+        <div class="availability-pill">Available Now</div>
+    }
+    
+    <h3>@Room.Name @if (IsExpanded) { <span> - @Room.Zone</span> }</h3>
+    
+    <div class="room-meta">
+        Capacity: <strong>@(Room.Capacity?.ToString() ?? "Unknown")</strong>
+    </div>
+
+    @if (IsExpanded)
+    {
+        <div class="expanded-content" @onclick:stopPropagation="true">
+            <img src="/facade.jpg" alt="Library Facade" class="modal-facade" />
+            
+            <div class="timeline-container">
+                <div class="timeline">
+                    <div class="time-labels">
+                        <span class="time-label start">@GetTimeLabel("start")</span>
+                        <span class="time-label middle">@GetTimeLabel("middle")</span>
+                        <span class="time-label end">@GetTimeLabel("end")</span>
+                    </div>
+                    
+                    @foreach (var segment in GetTimelineSegments())
+                    {
+                        <div class="booking-segment" 
+                             style="@GetSegmentStyle(segment)"
+                             title="@GetSegmentTitle(segment)">
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="time-selectors">
+                <label>
+                    Start Time:
+                    <select @bind="selectedStart" @bind:event="onchange">
+                        <option value="">Select Start</option>
+                        @foreach (var time in GetTimeOptions())
+                        {
+                            <option value="@time">@time</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    End Time:
+                    <select @bind="selectedEnd" @bind:event="onchange">
+                        <option value="">Select End</option>
+                        @foreach (var time in GetTimeOptions())
+                        {
+                            <option value="@time">@time</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            @if (showBookingForm)
+            {
+                <form class="booking-form" @onsubmit="HandleBookingSubmit" @onsubmit:preventDefault="true">
+                    <h4>Book this room from @selectedStart to @selectedEnd</h4>
+                    
+                    <input @bind="firstName" type="text" placeholder="First Name" required />
+                    <input @bind="lastName" type="text" placeholder="Last Name" required />
+                    <input @bind="email" type="email" placeholder="URI.edu Email" required />
+                    
+                    <button type="submit" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span>Booking...</span>
+                        }
+                        else
+                        {
+                            <span>Book Now</span>
+                        }
+                    </button>
+                </form>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .room-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .room-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .room-card.expanded {
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        cursor: default;
+    }
+
+    .availability-pill {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: #27ae60;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+
+    .expanded-content {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #eee;
+    }
+
+    .modal-facade {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .timeline-container {
+        margin: 1rem 0;
+    }
+
+    .timeline {
+        position: relative;
+        height: 40px;
+        background: #27ae60;
+        border-radius: 20px;
+        margin-bottom: 0.5rem;
+    }
+
+    .time-labels {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 1rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.8rem;
+        color: #666;
+    }
+
+    .booking-segment {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        border-radius: 20px;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .time-selectors {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+        justify-content: center;
+    }
+
+    .time-selectors label {
+        display: flex;
+        flex-direction: column;
+        font-size: 14px;
+    }
+
+    .time-selectors select {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .booking-form {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-top: 1rem;
+    }
+
+    .booking-form input {
+        width: 100%;
+        padding: 0.5rem;
+        margin: 0.5rem 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .booking-form button {
+        width: 100%;
+        padding: 0.75rem;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+        margin-top: 0.5rem;
+    }
+
+    .booking-form button:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .booking-form button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+</style>
+
+@code {
+    [Parameter] public Room Room { get; set; } = new();
+    [Parameter] public bool IsExpanded { get; set; }
+    [Parameter] public EventCallback OnToggleExpanded { get; set; }
+    [Parameter] public EventCallback<BookingRequest> OnBookingRequested { get; set; }
+
+    private string firstName = "";
+    private string lastName = "";
+    private string email = "";
+    private bool isSubmitting = false;
+    private bool showBookingForm => !string.IsNullOrEmpty(selectedStart) && !string.IsNullOrEmpty(selectedEnd);
+
+    private string _selectedStart = "";
+    private string selectedStart 
+    { 
+        get => _selectedStart; 
+        set 
+        { 
+            _selectedStart = value; 
+            UpdateSelection(); 
+        } 
+    }
+
+    private string _selectedEnd = "";
+    private string selectedEnd 
+    { 
+        get => _selectedEnd; 
+        set 
+        { 
+            _selectedEnd = value; 
+            UpdateSelection(); 
+        } 
+    }
+
+    private List<string> GetTimeOptions()
+    {
+        var options = new List<string>();
+        var start = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 8, 0, 0); // 8 AM
+        var end = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.Today.Day, 22, 0, 0); // 10 PM
+        
+        for (var time = start; time <= end; time = time.AddMinutes(15))
+        {
+            options.Add(time.ToString("HH:mm"));
+        }
+        
+        return options;
+    }
+
+    private string GetTimeLabel(string position)
+    {
+        return position switch
+        {
+            "start" => "8:00 AM",
+            "middle" => "3:00 PM",
+            "end" => "10:00 PM",
+            _ => ""
+        };
+    }
+
+    private List<TimeSegment> GetTimelineSegments()
+    {
+        // Combine availability and bookings for timeline display
+        var segments = new List<TimeSegment>();
+        segments.AddRange(Room.Availability);
+        // Add bookings as unavailable segments
+        segments.AddRange(Room.Bookings.Select(b => new TimeSegment
+        {
+            From = b.FromDate,
+            To = b.ToDate,
+            Status = "Booked"
+        }));
+        return segments.OrderBy(s => s.From).ToList();
+    }
+
+    private string GetSegmentStyle(TimeSegment segment)
+    {
+        // Calculate position based on 8 AM - 10 PM timeline
+        var dayStart = new DateTime(segment.From.Year, segment.From.Month, segment.From.Day, 8, 0, 0);
+        var dayEnd = new DateTime(segment.From.Year, segment.From.Month, segment.From.Day, 22, 0, 0);
+        var totalMinutes = (dayEnd - dayStart).TotalMinutes;
+        
+        var segmentStart = segment.From < dayStart ? dayStart : segment.From;
+        var segmentEnd = segment.To > dayEnd ? dayEnd : segment.To;
+        
+        if (segmentStart >= segmentEnd) return "display: none;";
+        
+        var leftPercent = (segmentStart - dayStart).TotalMinutes / totalMinutes * 100;
+        var widthPercent = (segmentEnd - segmentStart).TotalMinutes / totalMinutes * 100;
+        
+        var backgroundColor = segment.Status == "Booked" ? "#e74c3c" : "#27ae60";
+        
+        return $"left: {leftPercent:F1}%; width: {widthPercent:F1}%; background: {backgroundColor};";
+    }
+
+    private string GetSegmentTitle(TimeSegment segment)
+    {
+        return $"{segment.From:HH:mm} - {segment.To:HH:mm} ({segment.Status})";
+    }
+
+    private void UpdateSelection()
+    {
+        // Validation will happen here
+        if (!string.IsNullOrEmpty(selectedStart) && !string.IsNullOrEmpty(selectedEnd))
+        {
+            var start = TimeSpan.Parse(selectedStart);
+            var end = TimeSpan.Parse(selectedEnd);
+            var duration = end - start;
+            
+            if (duration.TotalMinutes < 30 || duration.TotalMinutes > 180)
+            {
+                selectedEnd = "";
+                // Could show error message
+            }
+        }
+    }
+
+    private async Task HandleBookingSubmit()
+    {
+        if (string.IsNullOrEmpty(selectedStart) || string.IsNullOrEmpty(selectedEnd)) return;
+        
+        isSubmitting = true;
+        
+        try
+        {
+            var startTime = DateTime.Today.Add(TimeSpan.Parse(selectedStart));
+            var endTime = DateTime.Today.Add(TimeSpan.Parse(selectedEnd));
+            
+            var request = new BookingRequest
+            {
+                RoomId = Room.Id,
+                StartTime = startTime,
+                EndTime = endTime,
+                FirstName = firstName,
+                LastName = lastName,
+                Email = email
+            };
+            
+            await OnBookingRequested.InvokeAsync(request);
+            
+            // Reset form
+            selectedStart = "";
+            selectedEnd = "";
+            firstName = "";
+            lastName = "";
+            email = "";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

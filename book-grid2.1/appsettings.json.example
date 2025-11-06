@@ -1,0 +1,31 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "LibCal": {
+    "BaseUrl": "https://uri.libcal.com/api/1.1",
+    "StaticToken": "<YOUR_LIBCAL_TOKEN_HERE>",
+    "LocationId": "<YOUR_LOCATION_ID>",
+    "RoomItemIds": [
+      211617, 211618, 211619
+    ],
+    "TokenRefreshUrl": "http://auth.library.uri.edu/api/v1/libcal/refresh"
+  },
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "System": "Warning"
+      }
+    }
+  },
+  "Cache": {
+    "DefaultExpirationMinutes": 5,
+    "TokenCacheMinutes": 50
+  }
+}

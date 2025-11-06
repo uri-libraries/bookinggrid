@@ -1,0 +1,8 @@
+
+- `GET /1.1/locations` - Get library locations
+- `GET /1.1/space/locations/{lid}` - Get spaces/rooms
+- `GET /1.1/space/availability` - Get room availability
+- `GET /1.1/space/bookings` - Get existing bookings
+- `POST /1.1/space/booking` - Create new booking
+- `DELETE /1.1/space/booking/{id}` - Cancel booking
+- `GET /1.1/space/item/{id}` - Gets info on space

@@ -1,0 +1,119 @@
+# macOS
+.DS_Store
+
+# Editor directories and files
+.vscode/
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+.npm/
+
+# Environment files (secrets)
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Dotnet
+# Ignore build outputs and obj directories for all projects
+**/bin/
+# macOS
+.DS_Store
+
+# Editor directories and files
+.vscode/
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+.npm/
+
+# Environment files (secrets)
+.env
+.env.*
+
+# appsettings files with secrets (development overrides)
+appsettings.Development.json
+appsettings.*.Development.json
+appsettings.json
+
+# Logs
+logs/
+*.log
+
+# Dotnet
+# Ignore build outputs and obj directories for all projects
+**/bin/
+**/obj/
+**/publish/
+
+# NuGet
+*.nupkg
+.packages/
+.nuget/
+
+# Rider
+*.sln.iml
+
+# Temporary / backup files
+*~
+*.swp
+*.bak
+*.backup
+
+# Test / coverage
+coverage/
+coverage-final.json
+.nyc_output/
+
+# Certificates and keys
+*.pem
+*.key
+
+# Misc
+.DS_Store
+Thumbs.db
+
+# Ignore generated staticwebassets files (if any)
+**/staticwebassets.*
+
+# Ignore compiled binary when running directly
+/bin/Debug/
+/bin/Release/
+
+# Ignore local launch settings
+Properties/launchSettings.json
+
+# Ignore package-lock logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore user-specific files
+*.log
+*.local
+
+# Vite dev server proxy or local test files
+proxy.log
+
+# Allowlist: don't ignore these project files (clarify)
+# Keep project files and source files tracked (csproj, sln, src, wwwroot, package.json)
