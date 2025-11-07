@@ -44,8 +44,6 @@ builder.Services.AddHttpClient<TokenManager>(client =>
 });
 
 // Register services
-builder.Services.AddScoped<TokenManager>();
-builder.Services.AddScoped<LibCalService>();
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
