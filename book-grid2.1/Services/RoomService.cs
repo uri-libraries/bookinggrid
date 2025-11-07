@@ -91,8 +91,51 @@ public class RoomService
 
     public void ClearCache()
     {
-        // This would ideally iterate through known cache keys, but for simplicity:
-        _logger.LogInformation("Room cache cleared");
+        // Clear cache for multiple dates to ensure fresh data
+        var today = DateTime.Today;
+        for (int i = 0; i < 7; i++)
+        {
+            var date = today.AddDays(i);
+            var cacheKey = $"rooms_{date:yyyy-MM-dd}";
+            _cache.Remove(cacheKey);
+        }
+        _logger.LogInformation("Room cache cleared for next 7 days");
+    }
+    
+    public async Task<List<Room>> GetRoomsWithoutCacheAsync(DateTime date)
+    {
+        _logger.LogInformation("Fetching fresh room data (bypassing cache) for {Date}", date);
+        var rooms = new List<Room>();
+
+        // Fetch bookings first
+        var bookings = await _libCalService.GetBookingsAsync(date);
+        var bookingsByRoom = bookings.GroupBy(b => b.RoomId).ToDictionary(g => g.Key, g => g.ToList());
+
+        // Fetch room details in parallel
+        var tasks = _roomIds.Select(async roomId =>
+        {
+            var room = await _libCalService.GetRoomDetailsAsync(roomId, date);
+            if (room != null)
+            {
+                room.Bookings = bookingsByRoom.GetValueOrDefault(roomId, new List<Booking>());
+                return room;
+            }
+            
+            // Fallback room if API fails
+            return new Room
+            {
+                Id = roomId,
+                Name = $"Room {roomId}",
+                Zone = GetRoomZone(roomId),
+                Bookings = bookingsByRoom.GetValueOrDefault(roomId, new List<Booking>())
+            };
+        });
+
+        var roomResults = await Task.WhenAll(tasks);
+        rooms.AddRange(roomResults.Where(r => r != null));
+        
+        _logger.LogInformation("Retrieved {Count} rooms without cache for {Date}", rooms.Count, date);
+        return rooms;
     }
 
     private static string GetRoomZone(int roomId)

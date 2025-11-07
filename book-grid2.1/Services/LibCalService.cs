@@ -31,7 +31,9 @@ public class LibCalService
             _httpClient.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
             var dateStr = date.ToString("yyyy-MM-dd");
-            var response = await _httpClient.GetAsync($"space/bookings?lid={_locationId}&date={dateStr}");
+            var url = $"space/bookings?lid={_locationId}&date={dateStr}";
+            _logger.LogInformation("Making request to: {BaseAddress}/{Url}", _httpClient.BaseAddress, url);
+            var response = await _httpClient.GetAsync(url);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
@@ -70,7 +72,9 @@ public class LibCalService
             _httpClient.DefaultRequestHeaders.Authorization = new("Bearer", token);
 
             var dateStr = date.ToString("yyyy-MM-dd");
-            var response = await _httpClient.GetAsync($"space/item/{roomId}?availability={dateStr}");
+            var url = $"space/item/{roomId}?availability={dateStr}";
+            _logger.LogInformation("Making request to: {BaseAddress}/{Url}", _httpClient.BaseAddress, url);
+            var response = await _httpClient.GetAsync(url);
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
