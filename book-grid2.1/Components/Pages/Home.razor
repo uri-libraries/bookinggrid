@@ -207,7 +207,7 @@
         get
         {
             var expectedCapacities = new[] { 1, 2, 4 };
-            var nums = rooms.Select(r => r.Capacity).Where(c => c.HasValue).Select(c => c!.Value).ToHashSet();
+            var nums = rooms.Select(r => r.Capacity).Where(c => c.HasValue).Select(c => c.Value).ToHashSet();
             var filtered = nums.Where(expectedCapacities.Contains).OrderBy(x => x).ToList();
             return filtered.Any() ? filtered : expectedCapacities.ToList();
         }
@@ -318,15 +318,6 @@
             };
             
             rooms = await RoomService.GetFilteredRoomsAsync(filter);
-            
-            // Initialize dictionaries for all rooms
-            foreach (var room in rooms)
-            {
-                if (!selectedStarts.ContainsKey(room.Id))
-                    selectedStarts[room.Id] = string.Empty;
-                if (!selectedEnds.ContainsKey(room.Id))
-                    selectedEnds[room.Id] = string.Empty;
-            }
         }
         catch (Exception ex)
         {
