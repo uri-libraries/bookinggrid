@@ -109,6 +109,21 @@ public class LibCalTokenResponse
     public DateTime ExpiryTime { get; set; }
 }
 
+public class AuthServiceTokenResponse
+{
+    [JsonPropertyName("access_token")]
+    public string AccessToken { get; set; } = string.Empty;
+
+    [JsonPropertyName("expires_at")]
+    public DateTime ExpiresAt { get; set; }
+
+    [JsonPropertyName("token_type")]
+    public string TokenType { get; set; } = string.Empty;
+
+    [JsonPropertyName("link_id")]
+    public string LinkId { get; set; } = string.Empty;
+}
+
 public class RoomFilter
 {
     public string Zone { get; set; } = "All";

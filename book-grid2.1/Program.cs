@@ -50,6 +50,19 @@ builder.Services.AddSignalR();
 
 var app = builder.Build();
 
+// Link LibCal token at startup
+using (var scope = app.Services.CreateScope())
+{
+    var tokenManager = scope.ServiceProvider.GetRequiredService<TokenManager>();
+    var accessToken = "ec048acd6c943b97204b839efcc8e57759ec5178";
+    var expiresAt = DateTime.UtcNow.AddSeconds(3600); // 1 hour from now
+    var linked = tokenManager.LinkLibCalTokenAsync(accessToken, expiresAt).GetAwaiter().GetResult();
+    if (linked)
+        Log.Information("LibCal token linked successfully at startup.");
+    else
+        Log.Error("Failed to link LibCal token at startup.");
+}
+
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())
 {

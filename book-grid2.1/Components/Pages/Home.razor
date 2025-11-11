@@ -117,7 +117,7 @@
                         {
                             <div class="time-selectors">
                                 <label>Start Time:
-                                    <select @bind="selectedStarts[room.Id]" @bind:after="() => UpdateSelection(room.Id)">
+                                    <select value="@GetSelectedStart(room.Id)" @onchange="@((e) => SetSelectedStart(room.Id, e.Value?.ToString() ?? ""))" @onchange:after="() => UpdateSelection(room.Id)">
                                         <option value="">Select Start</option>
                                         @foreach (var time in timeOptions)
                                         {
@@ -126,7 +126,7 @@
                                     </select>
                                 </label>
                                 <label>End Time:
-                                    <select @bind="selectedEnds[room.Id]" @bind:after="() => UpdateSelection(room.Id)">
+                                    <select value="@GetSelectedEnd(room.Id)" @onchange="@((e) => SetSelectedEnd(room.Id, e.Value?.ToString() ?? ""))" @onchange:after="() => UpdateSelection(room.Id)">
                                         <option value="">Select End</option>
                                         @foreach (var time in timeOptions)
                                         {
@@ -207,10 +207,35 @@
         get
         {
             var expectedCapacities = new[] { 1, 2, 4 };
-            var nums = rooms.Select(r => r.Capacity).Where(c => c.HasValue).Select(c => c.Value).ToHashSet();
+            var nums = rooms.Select(r => r.Capacity).Where(c => c.HasValue).Select(c => c!.Value).ToHashSet();
             var filtered = nums.Where(expectedCapacities.Contains).OrderBy(x => x).ToList();
             return filtered.Any() ? filtered : expectedCapacities.ToList();
         }
+    }
+    
+    // Helper methods to safely access dictionaries
+    private string GetSelectedStart(int roomId)
+    {
+        if (!selectedStarts.ContainsKey(roomId))
+            selectedStarts[roomId] = string.Empty;
+        return selectedStarts[roomId];
+    }
+    
+    private void SetSelectedStart(int roomId, string value)
+    {
+        selectedStarts[roomId] = value;
+    }
+    
+    private string GetSelectedEnd(int roomId)
+    {
+        if (!selectedEnds.ContainsKey(roomId))
+            selectedEnds[roomId] = string.Empty;
+        return selectedEnds[roomId];
+    }
+    
+    private void SetSelectedEnd(int roomId, string value)
+    {
+        selectedEnds[roomId] = value;
     }
     
     private List<Room>? filteredSortedRooms
@@ -318,6 +343,15 @@
             };
             
             rooms = await RoomService.GetFilteredRoomsAsync(filter);
+            
+            // Initialize dictionaries for all rooms
+            foreach (var room in rooms)
+            {
+                if (!selectedStarts.ContainsKey(room.Id))
+                    selectedStarts[room.Id] = string.Empty;
+                if (!selectedEnds.ContainsKey(room.Id))
+                    selectedEnds[room.Id] = string.Empty;
+            }
         }
         catch (Exception ex)
         {
