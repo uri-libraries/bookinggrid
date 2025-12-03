@@ -449,7 +449,7 @@ const fetchItemDetailsWithAvailability = async (ids, dateStr) => {
         if (dateStr === todayStr) {
           itemUrl = `${baseUrl}/space/item/${id}?availability`
         } else {
-          itemUrl = `${baseUrl}/space/item/${id}?availability=${dateStr}`
+          itemUrl = `/api/v1/rooms/${id}/availability?date=${dateStr}`
         }
         console.log('API Request:', itemUrl)
         const res = await apiFetch(itemUrl, { headers: { 'Authorization': `Bearer ${token}` } })

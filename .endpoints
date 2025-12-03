@@ -1,8 +1,7 @@
-
-- `GET /1.1/locations` - Get library locations
-- `GET /1.1/space/locations/{lid}` - Get spaces/rooms
-- `GET /1.1/space/availability` - Get room availability
-- `GET /1.1/space/bookings` - Get existing bookings
-- `POST /1.1/space/booking` - Create new booking
-- `DELETE /1.1/space/booking/{id}` - Cancel booking
-- `GET /1.1/space/item/{id}` - Gets info on space
+- `GET /api/v1/locations` - Get library locations
+- `GET /api/v1/rooms` - Get all rooms
+- `GET /api/v1/rooms/{id}` - Get room details
+- `GET /api/v1/rooms/{id}/availability?date=YYYY-MM-DD` - Get room availability
+- `GET /api/v1/bookings?date=YYYY-MM-DD` - Get existing bookings
+- `POST /api/v1/bookings` - Create new booking
+- `DELETE /api/v1/bookings/{id}` - Cancel booking

@@ -39,7 +39,7 @@ if (!roomItemIds.length) {
   const out = {}
   for (const id of roomItemIds) {
     try {
-      const url = `${base}/space/items/${id}`
+      const url = `/api/v1/rooms/${id}`
       console.log('Fetching', url)
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
       if (!res.ok) {
