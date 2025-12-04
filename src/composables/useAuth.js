@@ -6,7 +6,7 @@ const isRefreshing = ref(false)
 
 export const useTokenManager = () => {
   const isTokenValid = computed(() => {
-    if (!tokenExpiry.value) return true // Assume valid if no expiry set
+    if (!tokenExpiry.value) return false // Need to fetch token if no expiry set
     return new Date() < new Date(tokenExpiry.value)
   })
 
@@ -47,13 +47,21 @@ export const useTokenManager = () => {
     isRefreshing.value = true
     
     try {
-      const response = await fetch('/token-refresh', {
+      const url = import.meta.env.VITE_TOKEN_REFRESH_URL
+      const apiKey = import.meta.env.VITE_AUTH_SERVICE_API_KEY
+      
+      console.log('Refreshing token...')
+      console.log('URL:', url)
+      console.log('API Key:', apiKey ? `${apiKey.substring(0, 20)}...` : 'MISSING')
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          current_token: currentToken.value
+          user_id: 'libcal'
         })
       })
 
@@ -63,8 +71,12 @@ export const useTokenManager = () => {
 
       const data = await response.json()
       
-      // Assuming your FastAPI service returns: { access_token, expires_in }
-      setToken(data.access_token, data.expires_in)
+      // Calculate expires_in from expires_at timestamp
+      const expiresAt = new Date(data.expires_at)
+      const now = new Date()
+      const expiresIn = Math.floor((expiresAt - now) / 1000)
+      
+      setToken(data.access_token, expiresIn)
       
       console.log('Token refreshed successfully')
       return data.access_token
