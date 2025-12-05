@@ -3,10 +3,11 @@ import { ref, computed } from 'vue'
 const currentToken = ref(localStorage.getItem('libcalToken') || import.meta.env.VITE_LIBCAL_TOKEN)
 const tokenExpiry = ref(localStorage.getItem('tokenExpiry'))
 const isRefreshing = ref(false)
+const initialized = ref(false)
 
 export const useTokenManager = () => {
   const isTokenValid = computed(() => {
-    if (!tokenExpiry.value) return false // Need to fetch token if no expiry set
+    if (!tokenExpiry.value) return false
     return new Date() < new Date(tokenExpiry.value)
   })
 
@@ -66,6 +67,8 @@ export const useTokenManager = () => {
       })
 
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Token refresh failed:', response.status, errorText)
         throw new Error(`Token refresh failed: ${response.status}`)
       }
 
@@ -82,26 +85,45 @@ export const useTokenManager = () => {
       return data.access_token
     } catch (error) {
       console.error('Token refresh failed:', error)
-      // Fall back to original token from env
-      const fallbackToken = import.meta.env.VITE_LIBCAL_TOKEN
-      if (fallbackToken) {
-        currentToken.value = fallbackToken
-        console.log('Falling back to static token')
-        return fallbackToken
-      }
       throw error
     } finally {
       isRefreshing.value = false
     }
   }
 
+  const initialize = async () => {
+    if (initialized.value) return
+    
+    console.log('Initializing token manager...')
+    
+    // Always fetch a fresh token on startup to ensure we have a valid one
+    try {
+      await refreshToken()
+      initialized.value = true
+      console.log('Token manager initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize token manager:', error)
+      // If we can't get a token, the app won't work
+      throw new Error('Failed to initialize authentication')
+    }
+  }
+
   const getValidToken = async () => {
+    // Ensure we're initialized first
+    if (!initialized.value) {
+      await initialize()
+    }
+    
+    console.log('getValidToken called')
+    console.log('isTokenValid:', isTokenValid.value)
+    console.log('needsRefresh:', needsRefresh.value)
+    
     if (!isTokenValid.value || needsRefresh.value) {
       try {
         return await refreshToken()
       } catch (error) {
-        console.warn('Token refresh failed, using current token:', error.message)
-        return currentToken.value
+        console.error('Token refresh failed:', error)
+        throw error
       }
     }
     
@@ -115,6 +137,7 @@ export const useTokenManager = () => {
     isRefreshing: computed(() => isRefreshing.value),
     setToken,
     refreshToken,
-    getValidToken
+    getValidToken,
+    initialize
   }
 }

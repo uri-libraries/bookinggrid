@@ -19,9 +19,16 @@ export default defineConfig({
         }
       },
       '/token-refresh': {
-        target: process.env.VITE_TOKEN_REFRESH_URL || 'http://localhost:8000',
+        target: 'https://auth.library.uri.edu',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/token-refresh/, '')
+        rewrite: (path) => path.replace(/^\/token-refresh/, '/api/v1/libcal/refresh'),
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            if (req.headers.authorization) {
+              proxyReq.setHeader('Authorization', req.headers.authorization);
+            }
+          });
+        }
       }
     }
   }
