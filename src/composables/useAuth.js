@@ -49,30 +49,38 @@ export const useTokenManager = () => {
     
     try {
       const url = import.meta.env.VITE_TOKEN_REFRESH_URL
-      const apiKey = import.meta.env.VITE_AUTH_SERVICE_API_KEY
+      const authToken = import.meta.env.VITE_AUTH_SERVICE_TOKEN
       
-      console.log('Refreshing token...')
+      console.log('=== Token Refresh Debug ===')
       console.log('URL:', url)
-      console.log('API Key:', apiKey ? `${apiKey.substring(0, 20)}...` : 'MISSING')
+      console.log('Auth token exists:', !!authToken)
+      
+      if (!url || !authToken) {
+        throw new Error(`Missing configuration: url=${!!url}, authToken=${!!authToken}`)
+      }
       
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
-          user_id: 'libcal'
+          user_id: 'booking_grid',
+          metadata: { source: 'booking-grid-app' }
         })
       })
 
+      console.log('Response status:', response.status)
+      
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Token refresh failed:', response.status, errorText)
-        throw new Error(`Token refresh failed: ${response.status}`)
+        throw new Error(`Token refresh failed: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
+      console.log('Token data received:', { expires_at: data.expires_at, link_id: data.link_id })
       
       // Calculate expires_in from expires_at timestamp
       const expiresAt = new Date(data.expires_at)
@@ -81,10 +89,10 @@ export const useTokenManager = () => {
       
       setToken(data.access_token, expiresIn)
       
-      console.log('Token refreshed successfully')
+      console.log('Token refreshed successfully, expires in:', expiresIn, 'seconds')
       return data.access_token
     } catch (error) {
-      console.error('Token refresh failed:', error)
+      console.error('Token refresh error details:', error.message)
       throw error
     } finally {
       isRefreshing.value = false

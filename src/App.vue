@@ -42,15 +42,15 @@
       <div v-if="filteredSortedRooms.length === 0" class="no-rooms">No rooms available for this date.</div>
       <div v-for="room in filteredSortedRooms" :key="room.id" class="room-card" :class="{ expanded: expandedRooms.includes(room.id) }" @click="toggleExpanded(room.id)">
         <div v-if="isRoomAvailableNow(room)" class="availability-pill">Available Now</div>
-        <h3>{{ room.name }}<span v-if="expandedRooms.includes(room.id)"> - {{ room.zone }}</span></h3>
+        <h3>{{ room.name }}<span v-if="expandedRooms.includes(room.id)"> - {{ room.zone }} - {{ formatDate(currentDate) }}</span></h3>
         <div class="room-meta">Capacity: <strong>{{ room.capacity ?? 'Unknown' }}</strong></div>
         <img v-if="expandedRooms.includes(room.id)" src="/facade.jpg" alt="Library Facade" class="modal-facade" @click.stop />
-        <div class="timeline" style="position: relative; height: 24px;" @mousemove="updateHoverTime" @mouseleave="clearHoverTime">
+        <div class="timeline" style="position: relative; height: 24px;" @mousemove="updateHoverTime" @mouseleave="clearHoverTime" @click.stop="onTimelineClick(room, $event)">
           <div class="time-label" style="left: 0%;">{{ formatTimeLabel('start') }}</div>
           <div class="time-label" style="left: 50%;">{{ formatTimeLabel('middle') }}</div>
           <div class="time-label" style="right: 0%;">{{ formatTimeLabel('end') }}</div>
           <div v-if="hoverTime && expandedRooms.includes(room.id)" class="hover-tooltip" :style="{ left: hoverLeft + 'px' }">{{ hoverTime }}</div>
-          <div v-if="selectedTimes[room.id] && expandedRooms.includes(room.id)" class="selected-booking" :style="getSelectedBookingStyle(room.id)" @mousedown="startDrag(room.id, $event)">{{ duration }} min</div>
+          <div v-if="selectedTimes[room.id] && expandedRooms.includes(room.id)" class="selected-booking" :style="getSelectedBookingStyle(room.id)">{{ duration }} min</div>
           <div
             v-for="(segment, idx) in room.availability && Array.isArray(room.availability)
               ? getTimelineSegments(room.availability)
@@ -61,17 +61,17 @@
             :title="formatTime(segment.from || segment.fromDate) + ' - ' + formatTime(segment.to || segment.toDate)"
           ></div>
         </div>
-        <div v-if="expandedRooms.includes(room.id)" class="time-selectors">
+        <div v-if="expandedRooms.includes(room.id)" class="time-selectors" @click.stop>
           <label>Start Time: 
             <select v-model="selectedStarts[room.id]" @change="updateSelection(room.id)">
               <option value="">Select Start</option>
-              <option v-for="time in timeOptions" :value="time" :key="time">{{ time }}</option>
+              <option v-for="time in getAvailableStartTimes(room)" :value="time" :key="time">{{ time }}</option>
             </select>
           </label>
           <label>End Time: 
-            <select v-model="selectedEnds[room.id]" @change="updateSelection(room.id)">
+            <select v-model="selectedEnds[room.id]" @change="updateSelection(room.id)" :key="`end-${room.id}-${selectedStarts[room.id]}`">
               <option value="">Select End</option>
-              <option v-for="time in timeOptions" :value="time" :key="time">{{ time }}</option>
+              <option v-for="time in getAvailableEndTimes(room, selectedStarts[room.id])" :value="time" :key="time">{{ time }}</option>
             </select>
           </label>
         </div>
@@ -200,6 +200,7 @@ const REQUEST_DELAY_MS = 150 // spacing between requests
 let _lastRequestAt = 0
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 const { getValidToken } = useTokenManager()
+const { refreshToken } = useTokenManager()
 
 const apiFetch = async (input, init = {}) => {
   const now = Date.now()
@@ -224,8 +225,8 @@ const apiFetch = async (input, init = {}) => {
     if (res.status === 401 || res.status === 403) {
       // Token might be invalid, try refreshing once more
       try {
-        console.log('Auth failed, attempting token refresh...')
-        const freshToken = await getValidToken()
+        console.log('Auth failed, forcing token refresh...')
+        const freshToken = await refreshToken()
         const retryHeaders = {
           ...init.headers,
           'Authorization': `Bearer ${freshToken}`
@@ -285,12 +286,115 @@ const timeOptions = computed(() => {
   const { openStart, openEnd } = getOpenRange(currentDate.value)
   const options = []
   for (let min = openStart; min <= openEnd; min += 15) {
-    options.push(minutesToTime(min))
+    const hours = Math.floor(min / 60)
+    const minutes = min % 60
+    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+    options.push(formattedTime)
   }
   return options
 })
 
+const mergeAdjacentSegments = (segments) => {
+  if (!segments || segments.length === 0) return []
+  
+  // Sort by start time
+  const sorted = [...segments].sort((a, b) => {
+    return parseTime(a.from || a.start) - parseTime(b.from || b.start)
+  })
+  
+  const merged = []
+  let current = { ...sorted[0] }
+  
+  for (let i = 1; i < sorted.length; i++) {
+    const currentEnd = parseTime(current.to || current.end)
+    const nextStart = parseTime(sorted[i].from || sorted[i].start)
+    const nextEnd = parseTime(sorted[i].to || sorted[i].end)
+    
+    // If segments are adjacent or overlapping (within 1 minute), merge them
+    if (nextStart - currentEnd <= 1) {
+      // Extend current segment
+      current.to = sorted[i].to || sorted[i].end
+    } else {
+      // Gap found, save current and start new one
+      merged.push(current)
+      current = { ...sorted[i] }
+    }
+  }
+  merged.push(current)
+  
+  return merged
+}
+
+const getAvailableStartTimes = (room) => {
+  if (!room) return []
+  
+  if (!room.availability || !Array.isArray(room.availability)) {
+    return timeOptions.value
+  }
+  
+  // Merge adjacent 5-minute segments into continuous blocks
+  const mergedSegments = mergeAdjacentSegments(room.availability)
+  
+  const availableTimes = []
+  const { openStart, openEnd } = getOpenRange(currentDate.value)
+  
+  // For each 15-minute interval, check if it's within a merged segment
+  for (let min = openStart; min < openEnd; min += 15) {
+    const isAvailable = mergedSegments.some(seg => {
+      const segStart = parseTime(seg.from || seg.start)
+      const segEnd = parseTime(seg.to || seg.end)
+      // Check if this time is within segment (with at least 30 min remaining)
+      return min >= segStart && min + 30 <= segEnd
+    })
+    
+    if (isAvailable) {
+      const hours = Math.floor(min / 60)
+      const minutes = min % 60
+      availableTimes.push(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`)
+    }
+  }
+  
+  return availableTimes.length > 0 ? availableTimes : []
+}
+
+const getAvailableEndTimes = (room, startTime) => {
+  if (!room || !startTime) return []
+  
+  const startMinutes = timeToMinutes(startTime)
+  
+  if (!room.availability || !Array.isArray(room.availability)) {
+    return []
+  }
+  
+  // Merge adjacent segments first
+  const mergedSegments = mergeAdjacentSegments(room.availability)
+  
+  // Find which merged segment contains the start time
+  const segment = mergedSegments.find(seg => {
+    const segStart = parseTime(seg.from || seg.start)
+    const segEnd = parseTime(seg.to || seg.end)
+    return startMinutes >= segStart && startMinutes < segEnd
+  })
+  
+  if (!segment) {
+    return []
+  }
+  
+  const segEnd = parseTime(segment.to || segment.end)
+  const maxEndTime = Math.min(startMinutes + 180, segEnd) // Max 3 hours or end of segment
+  
+  const availableTimes = []
+  for (let min = startMinutes + 30; min <= maxEndTime; min += 15) {
+    const hours = Math.floor(min / 60)
+    const minutes = min % 60
+    availableTimes.push(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`)
+  }
+  
+  return availableTimes
+}
+
 const timeToMinutes = (timeStr) => {
+  if (!timeStr) return 0
   const [h, m] = timeStr.split(':').map(Number)
   return h * 60 + m
 }
@@ -449,10 +553,10 @@ const fetchItemDetailsWithAvailability = async (ids, dateStr) => {
         if (dateStr === todayStr) {
           itemUrl = `${baseUrl}/space/item/${id}?availability`
         } else {
-          itemUrl = `/api/v1/rooms/${id}/availability?date=${dateStr}`
+          itemUrl = `${baseUrl}/space/item/${id}?availability=${dateStr}`
         }
         console.log('API Request:', itemUrl)
-        const res = await apiFetch(itemUrl, { headers: { 'Authorization': `Bearer ${token}` } })
+        const res = await apiFetch(itemUrl)
         console.log(`fetchItemDetailsWithAvailability: id=${id} attempt=${attempts} status=${res.status}`)
         if (res.ok) {
           const data = await res.json()
@@ -564,6 +668,25 @@ const getAvailabilityPercent = (roomId) => {
   const { openStart, openEnd } = getOpenRange(currentDate.value)
   const totalOpen = Math.max(0, openEnd - openStart)
   if (totalOpen === 0) return 0
+  
+  const room = rooms.value.find(r => r.id === roomId)
+  
+  // If room has availability array (green segments), calculate from that
+  if (room && room.availability && Array.isArray(room.availability)) {
+    const totalAvailable = room.availability.reduce((total, seg) => {
+      const start = new Date(seg.from || seg.start)
+      const end = new Date(seg.to || seg.end)
+      const startMinutes = start.getHours() * 60 + start.getMinutes()
+      const endMinutes = end.getHours() * 60 + end.getMinutes()
+      const adjStart = Math.max(startMinutes, openStart)
+      const adjEnd = Math.min(endMinutes, openEnd)
+      if (adjStart >= adjEnd) return total
+      return total + (adjEnd - adjStart)
+    }, 0)
+    return (totalAvailable / totalOpen) * 100
+  }
+  
+  // Otherwise calculate from bookings (red segments)
   const booked = getTotalBookedMinutes(roomId)
   const avail = Math.max(0, totalOpen - booked)
   return (avail / totalOpen) * 100
@@ -627,56 +750,125 @@ const startDrag = (id, event) => {
   const clickX = event.clientX - barRect.left
   const barWidth = barRect.width
   let type = 'move'
-  if (clickX < barWidth * 0.2) {
+  // Increase edge zones to 30% for easier resize grabbing
+  if (clickX < barWidth * 0.3) {
     type = 'resize-start'
-  } else if (clickX > barWidth * 0.8) {
+  } else if (clickX > barWidth * 0.7) {
     type = 'resize-end'
   }
-  dragging.value = { id, startX: event.clientX, initialStart: selectedTimes.value[id], initialDuration: duration.value, type }
+  dragging.value = { 
+    id, 
+    startX: event.clientX, 
+    initialStart: selectedTimes.value[id], 
+    initialDuration: duration.value, 
+    type,
+    timelineRect: event.currentTarget.closest('.timeline').getBoundingClientRect()
+  }
   event.preventDefault()
+  event.stopPropagation()
+}
+
+const onTimelineClick = (room, event) => {
+  // Get click position relative to timeline
+  const rect = event.currentTarget.getBoundingClientRect()
+  const clickX = event.clientX - rect.left
+  const percent = clickX / rect.width
+  
+  const { openStart, openEnd } = getOpenRange(currentDate.value)
+  const totalMinutes = openEnd - openStart
+  const clickedMinutes = Math.floor(openStart + (percent * totalMinutes))
+  
+  // Check if this time is in an available (green) segment
+  const segments = room.availability && Array.isArray(room.availability)
+    ? getTimelineSegments(room.availability)
+    : getBookingsForRoom(room.id)
+  
+  const clickedSegment = segments.find(seg => {
+    const segStart = parseTime(seg.from || seg.fromDate)
+    const segEnd = parseTime(seg.to || seg.toDate)
+    return clickedMinutes >= segStart && clickedMinutes < segEnd
+  })
+  
+  // Only proceed if clicking on an available (green) segment
+  if (clickedSegment && !clickedSegment.isApiAvailability) {
+    // Round to nearest 15 minutes
+    const roundedStart = Math.floor(clickedMinutes / 15) * 15
+    
+    // Set the start time and show the booking form
+    selectedTimes.value[room.id] = roundedStart
+    selectedStarts.value[room.id] = `${Math.floor(roundedStart / 60).toString().padStart(2, '0')}:${(roundedStart % 60).toString().padStart(2, '0')}`
+    
+    // Set default end time (30 minutes later)
+    const endMinutes = roundedStart + 30
+    selectedEnds.value[room.id] = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`
+    duration.value = 30
+  }
+  // If clicking on red segment, do nothing (which is what we want)
 }
 
 const onMouseMove = (event) => {
   if (dragging.value) {
     const deltaX = event.clientX - dragging.value.startX
-    const timeline = document.querySelector('.timeline')
-    if (timeline) {
-      const rect = timeline.getBoundingClientRect()
-      const percent = deltaX / rect.width
-      const { openStart, openEnd } = getOpenRange(currentDate.value)
-      const deltaMinutes = percent * (openEnd - openStart)
-      const room = rooms.value.find(r => r.id == dragging.value.id)
-      if (dragging.value.type === 'move') {
-        let newStart = dragging.value.initialStart + Math.round(deltaMinutes / 5) * 5
-        newStart = Math.max(openStart, Math.min(openEnd - duration.value, newStart))
-        // Check if the period is available
-        if (room && isPeriodAvailable(room, newStart, newStart + duration.value)) {
+    const rect = dragging.value.timelineRect
+    const percent = deltaX / rect.width
+    const { openStart, openEnd } = getOpenRange(currentDate.value)
+    const deltaMinutes = percent * (openEnd - openStart)
+    const room = rooms.value.find(r => r.id == dragging.value.id)
+    
+    if (dragging.value.type === 'move') {
+      let newStart = dragging.value.initialStart + Math.round(deltaMinutes / 5) * 5
+      newStart = Math.max(openStart, Math.min(openEnd - duration.value, newStart))
+      const newEnd = newStart + duration.value
+      
+      // Check if the ENTIRE period is available (no red segments)
+      if (room && isPeriodFullyAvailable(room, newStart, newEnd)) {
+        selectedTimes.value[dragging.value.id] = newStart
+        // Update the dropdown
+        const hours = Math.floor(newStart / 60)
+        const mins = newStart % 60
+        selectedStarts.value[dragging.value.id] = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+      }
+    } else if (dragging.value.type === 'resize-end') {
+      let newDuration = dragging.value.initialDuration + Math.round(deltaMinutes / 5) * 5
+      newDuration = Math.max(30, Math.min(180, newDuration))
+      if (room) {
+        const maxAvail = getMaxDuration(room)
+        newDuration = Math.min(newDuration, maxAvail)
+        const start = selectedTimes.value[dragging.value.id]
+        const newEnd = start + newDuration
+        
+        if (isPeriodFullyAvailable(room, start, newEnd)) {
+          duration.value = newDuration
+          // Update the end time dropdown
+          const endMinutes = start + newDuration
+          const hours = Math.floor(endMinutes / 60)
+          const mins = endMinutes % 60
+          selectedEnds.value[dragging.value.id] = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+        }
+      }
+    } else if (dragging.value.type === 'resize-start') {
+      let deltaMin = Math.round(deltaMinutes / 5) * 5
+      let newStart = dragging.value.initialStart + deltaMin
+      newStart = Math.max(openStart, newStart)
+      let newDuration = dragging.value.initialDuration - deltaMin
+      newDuration = Math.max(30, Math.min(180, newDuration))
+      if (room) {
+        const maxAvail = getMaxDuration(room)
+        newDuration = Math.min(newDuration, maxAvail)
+        const newEnd = newStart + newDuration
+        
+        if (isPeriodFullyAvailable(room, newStart, newEnd)) {
           selectedTimes.value[dragging.value.id] = newStart
-        }
-      } else if (dragging.value.type === 'resize-end') {
-        let newDuration = dragging.value.initialDuration + Math.round(deltaMinutes / 5) * 5
-        newDuration = Math.max(30, Math.min(180, newDuration))
-        if (room) {
-          const maxAvail = getMaxDuration(room)
-          newDuration = Math.min(newDuration, maxAvail)
-          const start = selectedTimes.value[dragging.value.id]
-          if (isPeriodAvailable(room, start, start + newDuration)) {
-            duration.value = newDuration
-          }
-        }
-      } else if (dragging.value.type === 'resize-start') {
-        let deltaMin = Math.round(deltaMinutes / 5) * 5
-        let newStart = dragging.value.initialStart - deltaMin
-        newStart = Math.max(openStart, newStart)
-        let newDuration = dragging.value.initialDuration + deltaMin
-        newDuration = Math.max(30, Math.min(180, newDuration))
-        if (room) {
-          const maxAvail = getMaxDuration(room)
-          newDuration = Math.min(newDuration, maxAvail)
-          if (isPeriodAvailable(room, newStart, newStart + newDuration)) {
-            selectedTimes.value[dragging.value.id] = newStart
-            duration.value = newDuration
-          }
+          duration.value = newDuration
+          // Update both dropdowns
+          const hours = Math.floor(newStart / 60)
+          const mins = newStart % 60
+          selectedStarts.value[dragging.value.id] = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+          
+          const endMinutes = newStart + newDuration
+          const endHours = Math.floor(endMinutes / 60)
+          const endMins = endMinutes % 60
+          selectedEnds.value[dragging.value.id] = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`
         }
       }
     }
@@ -723,6 +915,33 @@ const isPeriodAvailable = (room, start, end) => {
   return false
 }
 
+const isPeriodFullyAvailable = (room, start, end) => {
+  // Check if the entire period from start to end is within available (green) segments
+  if (!room.availability || !Array.isArray(room.availability)) {
+    // No availability data, check against bookings
+    const bookings = getBookingsForRoom(room.id)
+    // Make sure period doesn't overlap with any booking
+    return !bookings.some(b => {
+      const bStart = new Date(b.fromDate).getHours() * 60 + new Date(b.fromDate).getMinutes()
+      const bEnd = new Date(b.toDate).getHours() * 60 + new Date(b.toDate).getMinutes()
+      return bStart < end && bEnd > start
+    })
+  }
+  
+  // Find which available segment(s) the period falls into
+  for (const seg of room.availability) {
+    const segStart = new Date(seg.from || seg.start).getHours() * 60 + new Date(seg.from || seg.start).getMinutes()
+    const segEnd = new Date(seg.to || seg.end).getHours() * 60 + new Date(seg.to || seg.end).getMinutes()
+    
+    // Check if the entire period is within this available segment
+    if (start >= segStart && end <= segEnd) {
+      return true
+    }
+  }
+  
+  return false
+}
+
 const selectTime = (id, event) => {
   console.log('Timeline clicked for room', id)
   const rect = event.currentTarget.getBoundingClientRect()
@@ -746,6 +965,11 @@ const selectTime = (id, event) => {
 
 const isRoomAvailableNow = (room) => {
   const now = new Date()
+  
+  // Only show "Available Now" if we're viewing today
+  const viewingToday = currentDate.value.toDateString() === now.toDateString()
+  if (!viewingToday) return false
+  
   const currentTime = now.getHours() * 60 + now.getMinutes()
   const { openStart, openEnd } = getOpenRange(currentDate.value)
   
@@ -877,13 +1101,29 @@ const filteredSortedRooms = computed(() => {
     }
     return true
   })
-  return filtered.slice().sort((a, b) => {
-    const availDiff = getAvailabilityPercent(b.id) - getAvailabilityPercent(a.id)
+  
+  const sorted = filtered.slice().sort((a, b) => {
+    // 1. Available now comes first
+    const aAvailNow = isRoomAvailableNow(a)
+    const bAvailNow = isRoomAvailableNow(b)
+    if (aAvailNow && !bAvailNow) return -1
+    if (!aAvailNow && bAvailNow) return 1
+    
+    // 2. If both (or neither) are available now, sort by availability percentage (highest first)
+    const availA = getAvailabilityPercent(a.id)
+    const availB = getAvailabilityPercent(b.id)
+    const availDiff = availB - availA
     if (Math.abs(availDiff) > 0.0001) return availDiff
+    
+    // 3. If same availability, sort alphabetically
     const nameCmp = (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
     if (nameCmp !== 0) return nameCmp
+    
+    // 4. Finally by ID as tie-breaker
     return a.id - b.id
   })
+  
+  return sorted
 })
 
 const EXPECTED_CAPACITIES = [1, 2, 4]
@@ -1135,9 +1375,8 @@ h1 {
   height: 100%;
   background: rgba(100, 100, 100, 0.7);
   border: 2px solid #555;
-  border-radius: 12px;
-  pointer-events: auto;
-  cursor: ew-resize;
+  border-radius: 4px;
+  pointer-events: none;
   z-index: 5;
   display: flex;
   align-items: center;
@@ -1148,7 +1387,7 @@ h1 {
 }
 
 .time-selectors {
-  margin-top: 10px;
+  margin-top: 30px;
   display: flex;
   gap: 10px;
   justify-content: center;
@@ -1172,9 +1411,11 @@ h1 {
 }
 
 .room-card.expanded .timeline {
-  height: 40px;
+  height: 50px;
   width: 80%;
   border-radius: 20px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .booking-segment {
