@@ -5,7 +5,9 @@ const tokenExpiry = ref(localStorage.getItem('tokenExpiry'))
 const isRefreshing = ref(false)
 const initialized = ref(false)
 
-const AUTH_SERVICE_URL = 'https://auth.library.uri.edu'
+const OAUTH_URL = '/oauth/token'
+const CLIENT_ID = import.meta.env.VITE_LIBCAL_CLIENT_ID
+const CLIENT_SECRET = import.meta.env.VITE_LIBCAL_CLIENT_SECRET
 
 export const useTokenManager = () => {
   const isTokenValid = computed(() => {
@@ -49,26 +51,39 @@ export const useTokenManager = () => {
     isRefreshing.value = true
     
     try {
-      console.log('Fetching LibCal token from auth service...')
+      console.log('Fetching LibCal OAuth token...')
       
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/v1/libcal/token`)
+      const response = await fetch(OAUTH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          scope: 'sp_r sp_w'
+        })
+      })
 
       if (!response.ok) {
         const text = await response.text()
-        throw new Error(`Auth service error: ${response.status} ${text}`)
+        throw new Error(`LibCal OAuth error: ${response.status} ${text}`)
       }
 
       const data = await response.json()
       
       if (!data.access_token) {
-        throw new Error('No access_token in response')
+        throw new Error('No access_token in OAuth response')
       }
 
-      setToken(data.access_token, data.expires_at)
+      // Calculate expiry time
+      const expiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString()
+      setToken(data.access_token, expiresAt)
       
       console.log('LibCal token refreshed successfully')
       console.log('Token type:', data.token_type)
-      console.log('Expires at:', data.expires_at)
+      console.log('Expires in:', data.expires_in, 'seconds')
       return data.access_token
     } catch (error) {
       console.error('Token refresh error:', error.message)

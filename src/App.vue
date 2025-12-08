@@ -1,5 +1,21 @@
 <template>
   <div id="app">
+    <!-- Primo NDE Header -->
+    <nav class="primo-header">
+      <div class="primo-header-container">
+        <div class="primo-logo">
+          <img src="/library-logo.png" alt="URI Library" />
+        </div>
+        <ul class="primo-nav">
+          <li><a href="https://uri.libguides.com/az/databases" target="_blank">Databases @ URI</a></li>
+          <li><a href="https://uri.primo.exlibrisgroup.com/nde/jsearch?vid=01URI_INST:01URI_INST_NDE&lang=en" target="_blank">Journal Search</a></li>
+          <li><a href="https://libkey.io/libraries/245/" target="_blank">Get PDF By DOI/PMID</a></li>
+          <li><a href="https://uri.primo.exlibrisgroup.com/nde/citationlinker?lang=en&vid=01URI_INST%3A01URI_INST_NDE" target="_blank">Search by Citation</a></li>
+          <li><a href="https://uri.illiad.oclc.org/illiad/" target="_blank">ILL Request</a></li>
+        </ul>
+      </div>
+    </nav>
+    
     <img src="/URI_11-16_21-3.jpg" alt="Library Header" class="header-image" />
     <h1>Reserve a Study Room at the Carothers Library</h1>
 
@@ -1234,13 +1250,75 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* Primo NDE Header - Exact Replication */
+.primo-header {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0;
+  margin: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.primo-header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+}
+
+.primo-logo {
+  display: flex;
+  align-items: center;
+}
+
+.primo-logo img {
+  height: 40px;
+  width: auto;
+}
+
+.primo-nav {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 24px;
+  align-items: center;
+}
+
+.primo-nav li {
+  margin: 0;
+  padding: 0;
+}
+
+.primo-nav a {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+
+.primo-nav a:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
+  margin-top: 120px; /* Increased to account for fixed header */
 }
 
 .header-image {
