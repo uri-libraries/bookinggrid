@@ -83,14 +83,31 @@
             </select>
           </label>
         </div>
-        <form v-if="expandedRooms.includes(room.id) && selectedTimes[room.id]" @submit.prevent="bookRoom(room)" @click.stop class="booking-form">
-          <h4>Book this room from {{ formatTime(minutesToTime(selectedTimes[room.id])) }} to {{ formatTime(minutesToTime(selectedTimes[room.id] + duration)) }}</h4>
-          <p>Drag the grey bar on the timeline to adjust duration (30 min - 3 hours)</p>
-          <input v-model="fname" type="text" placeholder="First Name" required />
-          <input v-model="lname" type="text" placeholder="Last Name" required />
-          <input v-model="email" type="email" placeholder="URI.edu Email" required pattern=".*@uri\.edu$" />
-          <button type="submit">Book Now</button>
-        </form>
+        <div v-if="expandedRooms.includes(room.id) && selectedTimes[room.id]" @click.stop class="booking-container">
+          <form @submit.prevent="bookRoom(room)" class="booking-form">
+            <h4>Book this room from {{ formatTime(minutesToTime(selectedTimes[room.id])) }} to {{ formatTime(minutesToTime(selectedTimes[room.id] + duration)) }}</h4>
+            <input v-model="fname" type="text" placeholder="First Name" required />
+            <input v-model="lname" type="text" placeholder="Last Name" required />
+            <input v-model="email" type="email" placeholder="URI.edu Email" required pattern=".*@uri\.edu$" />
+            <div class="terms-checkbox">
+              <input type="checkbox" :id="`terms-${room.id}`" v-model="termsAccepted[room.id]" required />
+              <label :for="`terms-${room.id}`">I have read and agree to the Terms and Conditions</label>
+            </div>
+            <button type="submit" :disabled="!termsAccepted[room.id]">Book Now</button>
+          </form>
+          <div class="terms-box">
+            <h4>Terms and Conditions</h4>
+            <p><strong>Once you reserve a room, you will receive a confirmation email with a link and a confirmation code. You must check-in to the room upon arrival. If you do not check in within 15 minutes of arriving for your reservation, your reservation will be cancelled.</strong></p>
+            <ol>
+              <li>No curtains nor rolling white boards shall obstruct windows nor block the doors of the study room. No papers should be taped to the walls.</li>
+              <li>No Library materials, including books, should be left in any Group Study Room.</li>
+              <li>The Library is not responsible for loss, theft, or damage of any material left in the room.</li>
+              <li>No electrical appliances are allowed in the Group Study Rooms.</li>
+              <li>The individual to whom the Group Study Room is assigned is responsible for any infraction of the policies or damage to the room. Any damage must be reported to Circulation as soon as possible.</li>
+              <li>The <a href="https://web.uri.edu/library/wp-content/uploads/sites/1549/Patron_Code_of_Conduct_2023.pdf" target="_blank">Library Patron Code of Conduct</a> will apply to all users of the Group Study Rooms.</li>
+            </ol>
+          </div>
+        </div>
       </div>
       </div>
   </div>
@@ -288,6 +305,7 @@ const hoverLeft = ref(0)
 const fname = ref('')
 const lname = ref('')
 const email = ref('')
+const termsAccepted = ref({})
 const selectedStarts = ref({})
 const selectedEnds = ref({})
 const timeOptions = computed(() => {
@@ -1310,11 +1328,17 @@ h1 {
   margin: 20px 0;
 }
 
+.booking-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
 .booking-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 20px;
   padding: 20px;
   background: #f8f9fa;
   border-radius: 8px;
@@ -1325,7 +1349,8 @@ h1 {
   color: #002D5B;
 }
 
-.booking-form input {
+.booking-form input[type="text"],
+.booking-form input[type="email"] {
   padding: 8px;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -1340,8 +1365,73 @@ h1 {
   cursor: pointer;
 }
 
-.booking-form button:hover {
+.booking-form button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.booking-form button:hover:not(:disabled) {
   background-color: #001F3F;
+}
+
+.terms-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.terms-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.terms-checkbox label {
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.terms-box {
+  padding: 20px;
+  background: #fff;
+  border: 2px solid #002D5B;
+  border-radius: 8px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.terms-box h4 {
+  margin: 0 0 15px 0;
+  color: #002D5B;
+  font-size: 18px;
+}
+
+.terms-box p {
+  margin: 0 0 15px 0;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.terms-box ol {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.terms-box li {
+  margin-bottom: 10px;
+}
+
+.terms-box a {
+  color: #002D5B;
+  text-decoration: underline;
+}
+
+.terms-box a:hover {
+  color: #001F3F;
 }
 
 .filters {
