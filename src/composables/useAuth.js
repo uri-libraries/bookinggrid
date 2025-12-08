@@ -5,6 +5,8 @@ const tokenExpiry = ref(localStorage.getItem('tokenExpiry'))
 const isRefreshing = ref(false)
 const initialized = ref(false)
 
+const AUTH_SERVICE_URL = 'https://auth.library.uri.edu'
+
 export const useTokenManager = () => {
   const isTokenValid = computed(() => {
     if (!currentToken.value || !tokenExpiry.value) return false
@@ -19,15 +21,13 @@ export const useTokenManager = () => {
     return (expiryTime.getTime() - now.getTime()) < 5 * 60 * 1000
   })
 
-  const setToken = (token, expiryInSeconds) => {
+  const setToken = (token, expiresAt) => {
     currentToken.value = token
+    tokenExpiry.value = expiresAt
     localStorage.setItem('libcalToken', token)
+    localStorage.setItem('tokenExpiry', expiresAt)
     
-    const expiry = new Date(Date.now() + (expiryInSeconds * 1000)).toISOString()
-    tokenExpiry.value = expiry
-    localStorage.setItem('tokenExpiry', expiry)
-    
-    console.log('Token stored, expires at:', expiry)
+    console.log('Token stored, expires at:', expiresAt)
   }
 
   const clearToken = () => {
@@ -49,41 +49,26 @@ export const useTokenManager = () => {
     isRefreshing.value = true
     
     try {
-      console.log('Fetching new LibCal OAuth token...')
+      console.log('Fetching LibCal token from auth service...')
       
-      const clientId = import.meta.env.VITE_LIBCAL_CLIENT_ID
-      const clientSecret = import.meta.env.VITE_LIBCAL_CLIENT_SECRET
-      
-      if (!clientId || !clientSecret) {
-        throw new Error('LibCal OAuth credentials not configured')
-      }
-
-      const response = await fetch('/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials&scope=sp_r sp_w`
-      })
+      const response = await fetch(`${AUTH_SERVICE_URL}/api/v1/libcal/token`)
 
       if (!response.ok) {
         const text = await response.text()
-        throw new Error(`OAuth token request failed: ${response.status} ${text}`)
+        throw new Error(`Auth service error: ${response.status} ${text}`)
       }
 
       const data = await response.json()
       
       if (!data.access_token) {
-        throw new Error('No access_token in OAuth response')
+        throw new Error('No access_token in response')
       }
 
-      // LibCal tokens typically expire in 3600 seconds (1 hour)
-      const expiresIn = data.expires_in || 3600
-      setToken(data.access_token, expiresIn)
+      setToken(data.access_token, data.expires_at)
       
-      console.log('LibCal OAuth token refreshed successfully')
-      console.log('Token scope:', data.scope)
-      console.log('Expires in:', expiresIn, 'seconds')
+      console.log('LibCal token refreshed successfully')
+      console.log('Token type:', data.token_type)
+      console.log('Expires at:', data.expires_at)
       return data.access_token
     } catch (error) {
       console.error('Token refresh error:', error.message)
@@ -97,7 +82,7 @@ export const useTokenManager = () => {
   const initialize = async () => {
     if (initialized.value) return
     
-    console.log('Initializing LibCal OAuth token manager...')
+    console.log('Initializing LibCal token manager...')
     
     try {
       // If we have a valid token, use it; otherwise fetch a new one
