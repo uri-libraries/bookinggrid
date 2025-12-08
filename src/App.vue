@@ -33,7 +33,13 @@
       </label>
     </nav>
 
-    <div v-if="loading">Loading...</div>
+    <div v-if="loading" class="rooms">
+      <div v-for="n in 12" :key="n" class="room-card skeleton">
+        <div class="skeleton-title"></div>
+        <div class="skeleton-meta"></div>
+        <div class="skeleton-timeline"></div>
+      </div>
+    </div>
     <div v-else-if="error">{{ error }}</div>
 
     <div v-else class="rooms">
@@ -41,7 +47,9 @@
 
       <div v-if="filteredSortedRooms.length === 0" class="no-rooms">No rooms available for this date.</div>
       <div v-for="room in filteredSortedRooms" :key="room.id" class="room-card" :class="{ expanded: expandedRooms.includes(room.id) }" @click="toggleExpanded(room.id)">
-        <div v-if="isRoomAvailableNow(room)" class="availability-pill">Available Now</div>
+        <div v-if="isRoomAvailableNow(room)" class="availability-pill">
+          <span class="green-dot"></span>Available Now
+        </div>
         <h3>{{ room.name }}<span v-if="expandedRooms.includes(room.id)"> - {{ room.zone }} - {{ formatDate(currentDate) }}</span></h3>
         <div class="room-meta">Capacity: <strong>{{ room.capacity ?? 'Unknown' }}</strong></div>
         <img v-if="expandedRooms.includes(room.id)" src="/facade.jpg" alt="Library Facade" class="modal-facade" @click.stop />
@@ -451,7 +459,7 @@ const buildRoomsFromBookings = (bookingList) => {
     const b = (bookingList || []).find(x => Number(x.eid) === Number(id))
     return {
       id: Number(id),
-      name: b ? b.item_name : `Room ${id}`,
+      name: b ? b.item_name : '',  // Empty string instead of "Room {id}"
       zone: b ? b.category_name : 'Uncategorized',
       capacity: null
     }
@@ -532,62 +540,63 @@ const fetchItemDetailsWithAvailability = async (ids, dateStr) => {
   const sanitized = (ids || []).map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0)
   const invalid = (ids || []).filter(id => !sanitized.includes(Number(id)))
   if (invalid.length) console.warn('fetchItemDetailsWithAvailability: skipping invalid ids', invalid)
+  
+  // Check cache first
   for (const id of sanitized) {
     if (itemCache[id] && itemCache[id].availabilityDate === dateStr) {
       map[id] = itemCache[id]
     }
   }
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-  const delayMs = 150
-  for (const id of sanitized) {
-    if (map[id]) continue
-    let attempts = 0
-    const maxAttempts = 3
-    let ok = false
-    while (!ok && attempts < maxAttempts) {
-      attempts += 1
+  
+  // Get IDs that need to be fetched
+  const idsToFetch = sanitized.filter(id => !map[id])
+  
+  if (idsToFetch.length === 0) return map
+  
+  const todayStr = new Date().toISOString().split('T')[0]
+  
+  // Fetch all items in parallel with rate limiting
+  // LibCal allows ~25 req/sec, so batch in groups of 20 with small delays
+  const batchSize = 20
+  const delayBetweenBatches = 1000 // 1 second between batches
+  
+  for (let i = 0; i < idsToFetch.length; i += batchSize) {
+    const batch = idsToFetch.slice(i, i + batchSize)
+    
+    // Fetch all items in this batch in parallel
+    await Promise.all(batch.map(async (id) => {
       try {
-        // For today, use ?availability (no value); for other dates, use ?availability=YYYY-MM-DD
         let itemUrl
-        const todayStr = new Date().toISOString().split('T')[0]
         if (dateStr === todayStr) {
           itemUrl = `${baseUrl}/space/item/${id}?availability`
         } else {
           itemUrl = `${baseUrl}/space/item/${id}?availability=${dateStr}`
         }
-        console.log('API Request:', itemUrl)
+        
         const res = await apiFetch(itemUrl)
-        console.log(`fetchItemDetailsWithAvailability: id=${id} attempt=${attempts} status=${res.status}`)
+        
         if (res.ok) {
           const data = await res.json()
-          // If response is array, take first; else use object
           const obj = Array.isArray(data) ? data[0] : data
           if (obj) {
             obj.availabilityDate = dateStr
             map[id] = obj
             itemCache[id] = obj
           }
-          ok = true
-          break
-        } else if (res.status >= 500) {
-          await sleep(delayMs * attempts)
         } else {
-          try {
-            const txt = await res.text()
-            console.warn(`fetchItemDetailsWithAvailability: id=${id} client error ${res.status}: ${txt}`)
-          } catch (e) {
-            console.warn(`fetchItemDetailsWithAvailability: id=${id} client error ${res.status}`)
-          }
-          ok = true
-          break
+          console.warn(`fetchItemDetailsWithAvailability: id=${id} error ${res.status}`)
         }
       } catch (e) {
-        console.warn(`fetchItemDetailsWithAvailability error id=${id} attempt=${attempts}`, e)
-        await sleep(delayMs * attempts)
+        console.warn(`fetchItemDetailsWithAvailability error id=${id}`, e)
       }
+    }))
+    
+    // If there are more batches, wait before next batch
+    if (i + batchSize < idsToFetch.length) {
+      await new Promise(resolve => setTimeout(resolve, delayBetweenBatches))
     }
-    await sleep(delayMs)
   }
+  
   return map
 }
 
@@ -976,14 +985,15 @@ const isRoomAvailableNow = (room) => {
   // Check if current time is within open hours
   if (currentTime < openStart || currentTime > openEnd) return false
   
-  // Check if there's an available segment covering now
+  // Check if there's an available segment covering now (use merged segments)
   if (room.availability && Array.isArray(room.availability)) {
-    return room.availability.some(seg => {
+    const mergedSegments = mergeAdjacentSegments(room.availability)
+    return mergedSegments.some(seg => {
       const start = new Date(seg.from || seg.start)
       const end = new Date(seg.to || seg.end)
       const startTime = start.getHours() * 60 + start.getMinutes()
       const endTime = end.getHours() * 60 + end.getMinutes()
-      return currentTime >= startTime && currentTime <= endTime
+      return currentTime >= startTime && currentTime < endTime
     })
   }
   
@@ -994,36 +1004,72 @@ const isRoomAvailableNow = (room) => {
     const end = new Date(booking.toDate)
     const startTime = start.getHours() * 60 + start.getMinutes()
     const endTime = end.getHours() * 60 + end.getMinutes()
-    return currentTime >= startTime && currentTime <= endTime
+    return currentTime >= startTime && currentTime < endTime
   })
 }
 
 const bookRoom = async (room) => {
-  console.log('Booking room:', room.id, 'from', selectedTimes.value[room.id], 'for', duration.value, 'minutes')
+  const startTimeStr = selectedStarts.value[room.id]
+  const endTimeStr = selectedEnds.value[room.id]
+  
+  if (!startTimeStr || !endTimeStr) {
+    alert('Please select start and end times')
+    return
+  }
+  
+  console.log('Booking room:', room.id, 'from', startTimeStr, 'to', endTimeStr)
+  
+  // Parse time strings (HH:mm format)
+  const [startHour, startMin] = startTimeStr.split(':').map(Number)
+  const [endHour, endMin] = endTimeStr.split(':').map(Number)
+  
+  // Create start and end dates in local timezone
   const startDate = new Date(currentDate.value)
-  startDate.setHours(0, selectedTimes.value[room.id], 0, 0)
-  const start = startDate.toISOString()
-  const end = new Date(startDate.getTime() + duration.value * 60 * 1000).toISOString()
-
-  const data = new URLSearchParams({
-    eid: room.id,
-    lid: import.meta.env.VITE_LOCATION_ID,
-    start: start,
+  startDate.setHours(startHour, startMin, 0, 0)
+  
+  const endDate = new Date(currentDate.value)
+  endDate.setHours(endHour, endMin, 0, 0)
+  
+  // Format as ISO string but preserve local time (LibCal expects local timezone)
+  const formatLocalISO = (date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+  }
+  
+  const payload = {
+    start: formatLocalISO(startDate),
     fname: fname.value,
     lname: lname.value,
-    email: email.value
-  })
+    email: email.value,
+    adminbooking: 1,
+    bookings: [
+      {
+        id: room.id,
+        to: formatLocalISO(endDate)
+      }
+    ]
+  }
 
-  console.log('Sending data:', data.toString())
+  console.log('Sending payload:', JSON.stringify(payload, null, 2))
 
   try {
-    const response = await fetch('/api/1.1/space/book', {
+    // Get a valid OAuth token
+    const token = await getValidToken()
+    console.log('Using token:', token)
+    console.log('Token starts with:', token.substring(0, 20))
+    
+    const response = await fetch('https://uri.libcal.com/api/1.1/space/reserve', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_LIBCAL_TOKEN}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       },
-      body: data
+      body: JSON.stringify(payload)
     })
 
     console.log('Response status:', response.status)
@@ -1064,12 +1110,18 @@ const formatDate = (date) => date.toLocaleDateString()
 
 const goToTomorrow = () => {
   currentDate.value = new Date(currentDate.value.getTime() + 24 * 60 * 60 * 1000)
-  fetchBookings()
+  loading.value = true
+  fetchBookings().finally(() => {
+    loading.value = false
+  })
 }
 
 const goToToday = () => {
   currentDate.value = new Date()
-  fetchBookings()
+  loading.value = true
+  fetchBookings().finally(() => {
+    loading.value = false
+  })
 }
 
 // Filter state and derived lists
@@ -1219,6 +1271,27 @@ h1 {
   font-size: 12px;
   font-weight: bold;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.green-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #2ecc71;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .modal-facade {
@@ -1464,3 +1537,46 @@ h1 {
   margin-top: 6px;
 }
 </style>
+/* Skeleton loading styles */
+.room-card.skeleton {
+  pointer-events: none;
+  animation: none;
+}
+
+.skeleton-title {
+  height: 24px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  width: 70%;
+}
+
+.skeleton-meta {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  width: 50%;
+}
+
+.skeleton-timeline {
+  height: 24px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  width: 100%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

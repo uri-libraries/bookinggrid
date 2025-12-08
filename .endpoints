@@ -3,5 +3,5 @@
 - `GET /api/v1/rooms/{id}` - Get room details
 - `GET /api/v1/rooms/{id}/availability?date=YYYY-MM-DD` - Get room availability
 - `GET /api/v1/bookings?date=YYYY-MM-DD` - Get existing bookings
-- `POST /api/v1/bookings` - Create new booking
+- `POST /api/v1/space/reserve` - Create new booking
 - `DELETE /api/v1/bookings/{id}` - Cancel booking

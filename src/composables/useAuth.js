@@ -63,7 +63,7 @@ export const useTokenManager = () => {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`
+        body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials&scope=sp_r sp_w`
       })
 
       if (!response.ok) {
@@ -81,7 +81,9 @@ export const useTokenManager = () => {
       const expiresIn = data.expires_in || 3600
       setToken(data.access_token, expiresIn)
       
-      console.log('LibCal OAuth token refreshed successfully, expires in:', expiresIn, 'seconds')
+      console.log('LibCal OAuth token refreshed successfully')
+      console.log('Token scope:', data.scope)
+      console.log('Expires in:', expiresIn, 'seconds')
       return data.access_token
     } catch (error) {
       console.error('Token refresh error:', error.message)
