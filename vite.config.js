@@ -18,10 +18,10 @@ export default defineConfig({
           });
         }
       },
-      '/token-refresh': {
-        target: 'https://auth.library.uri.edu',
+      '/oauth': {
+        target: 'https://uri.libcal.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/token-refresh/, '/api/v1/libcal/refresh')
+        rewrite: (path) => path.replace(/^\/oauth/, '/1.1/oauth')
       }
     }
   }

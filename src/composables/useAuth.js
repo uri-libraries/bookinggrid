@@ -1,98 +1,91 @@
 import { ref, computed } from 'vue'
 
-const currentToken = ref(localStorage.getItem('libcalToken') || import.meta.env.VITE_LIBCAL_TOKEN)
+const currentToken = ref(localStorage.getItem('libcalToken'))
 const tokenExpiry = ref(localStorage.getItem('tokenExpiry'))
 const isRefreshing = ref(false)
 const initialized = ref(false)
 
 export const useTokenManager = () => {
   const isTokenValid = computed(() => {
-    if (!tokenExpiry.value) return false
+    if (!currentToken.value || !tokenExpiry.value) return false
     return new Date() < new Date(tokenExpiry.value)
   })
 
   const needsRefresh = computed(() => {
-    if (!tokenExpiry.value) return false
+    if (!tokenExpiry.value) return true
     const expiryTime = new Date(tokenExpiry.value)
     const now = new Date()
-    // Refresh if token expires in the next 10 minutes
-    return (expiryTime.getTime() - now.getTime()) < 10 * 60 * 1000
+    // Refresh if token expires in the next 5 minutes
+    return (expiryTime.getTime() - now.getTime()) < 5 * 60 * 1000
   })
 
-  const setToken = (token, expiryInSeconds = null) => {
+  const setToken = (token, expiryInSeconds) => {
     currentToken.value = token
     localStorage.setItem('libcalToken', token)
     
-    if (expiryInSeconds) {
-      const expiry = new Date(Date.now() + (expiryInSeconds * 1000)).toISOString()
-      tokenExpiry.value = expiry
-      localStorage.setItem('tokenExpiry', expiry)
-    }
+    const expiry = new Date(Date.now() + (expiryInSeconds * 1000)).toISOString()
+    tokenExpiry.value = expiry
+    localStorage.setItem('tokenExpiry', expiry)
+    
+    console.log('Token stored, expires at:', expiry)
+  }
+
+  const clearToken = () => {
+    currentToken.value = null
+    tokenExpiry.value = null
+    localStorage.removeItem('libcalToken')
+    localStorage.removeItem('tokenExpiry')
   }
 
   const refreshToken = async () => {
     if (isRefreshing.value) {
-      // Already refreshing, wait for it
-      return new Promise((resolve) => {
-        const checkRefresh = () => {
-          if (!isRefreshing.value) {
-            resolve(currentToken.value)
-          } else {
-            setTimeout(checkRefresh, 100)
-          }
-        }
-        checkRefresh()
-      })
+      // Wait for the existing refresh to complete
+      while (isRefreshing.value) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      return currentToken.value
     }
 
     isRefreshing.value = true
     
     try {
-      const url = import.meta.env.VITE_TOKEN_REFRESH_URL
-      const authToken = import.meta.env.VITE_AUTH_SERVICE_TOKEN
+      console.log('Fetching new LibCal OAuth token...')
       
-      console.log('=== Token Refresh Debug ===')
-      console.log('URL:', url)
-      console.log('Auth token exists:', !!authToken)
+      const clientId = import.meta.env.VITE_LIBCAL_CLIENT_ID
+      const clientSecret = import.meta.env.VITE_LIBCAL_CLIENT_SECRET
       
-      if (!url || !authToken) {
-        throw new Error(`Missing configuration: url=${!!url}, authToken=${!!authToken}`)
+      if (!clientId || !clientSecret) {
+        throw new Error('LibCal OAuth credentials not configured')
       }
-      
-      const response = await fetch(url, {
+
+      const response = await fetch('/oauth/token', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          user_id: 'booking_grid',
-          metadata: { source: 'booking-grid-app' }
-        })
+        body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`
       })
 
-      console.log('Response status:', response.status)
-      
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Token refresh failed:', response.status, errorText)
-        throw new Error(`Token refresh failed: ${response.status} - ${errorText}`)
+        const text = await response.text()
+        throw new Error(`OAuth token request failed: ${response.status} ${text}`)
       }
 
       const data = await response.json()
-      console.log('Token data received:', { expires_at: data.expires_at, link_id: data.link_id })
       
-      // Calculate expires_in from expires_at timestamp
-      const expiresAt = new Date(data.expires_at)
-      const now = new Date()
-      const expiresIn = Math.floor((expiresAt - now) / 1000)
-      
+      if (!data.access_token) {
+        throw new Error('No access_token in OAuth response')
+      }
+
+      // LibCal tokens typically expire in 3600 seconds (1 hour)
+      const expiresIn = data.expires_in || 3600
       setToken(data.access_token, expiresIn)
       
-      console.log('Token refreshed successfully, expires in:', expiresIn, 'seconds')
+      console.log('LibCal OAuth token refreshed successfully, expires in:', expiresIn, 'seconds')
       return data.access_token
     } catch (error) {
-      console.error('Token refresh error details:', error.message)
+      console.error('Token refresh error:', error.message)
+      clearToken()
       throw error
     } finally {
       isRefreshing.value = false
@@ -102,16 +95,17 @@ export const useTokenManager = () => {
   const initialize = async () => {
     if (initialized.value) return
     
-    console.log('Initializing token manager...')
+    console.log('Initializing LibCal OAuth token manager...')
     
-    // Always fetch a fresh token on startup to ensure we have a valid one
     try {
-      await refreshToken()
+      // If we have a valid token, use it; otherwise fetch a new one
+      if (!isTokenValid.value) {
+        await refreshToken()
+      }
       initialized.value = true
       console.log('Token manager initialized successfully')
     } catch (error) {
       console.error('Failed to initialize token manager:', error)
-      // If we can't get a token, the app won't work
       throw new Error('Failed to initialize authentication')
     }
   }
@@ -122,17 +116,10 @@ export const useTokenManager = () => {
       await initialize()
     }
     
-    console.log('getValidToken called')
-    console.log('isTokenValid:', isTokenValid.value)
-    console.log('needsRefresh:', needsRefresh.value)
-    
+    // If token is invalid or needs refresh, get a new one
     if (!isTokenValid.value || needsRefresh.value) {
-      try {
-        return await refreshToken()
-      } catch (error) {
-        console.error('Token refresh failed:', error)
-        throw error
-      }
+      console.log('Token invalid or needs refresh, fetching new token...')
+      return await refreshToken()
     }
     
     return currentToken.value
