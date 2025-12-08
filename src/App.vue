@@ -1095,10 +1095,11 @@ const bookRoom = async (room) => {
     console.log('Response:', responseText)
 
     if (response.ok) {
-      alert('Booking successful!')
+      alert('✅ Booking Confirmed!\n\nPlease check your email for:\n• Confirmation details\n• Check-in instructions\n• Your confirmation code\n\nRemember: You must check in within 15 minutes of your reservation start time, or your booking will be cancelled.')
       fname.value = ''
       lname.value = ''
       email.value = ''
+      termsAccepted.value[room.id] = false
       delete selectedTimes.value[room.id] // Reset selection after booking
       delete selectedStarts.value[room.id]
       delete selectedEnds.value[room.id]
