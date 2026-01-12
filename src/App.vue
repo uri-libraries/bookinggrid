@@ -6,12 +6,17 @@
         <div class="primo-logo">
           <img src="/library-logo.png" alt="URI Library" />
         </div>
-        <ul class="primo-nav">
-          <li><a href="https://uri.libguides.com/az/databases" target="_blank">Databases @ URI</a></li>
-          <li><a href="https://uri.primo.exlibrisgroup.com/nde/jsearch?vid=01URI_INST:01URI_INST_NDE&lang=en" target="_blank">Journal Search</a></li>
-          <li><a href="https://libkey.io/libraries/245/" target="_blank">Get PDF By DOI/PMID</a></li>
-          <li><a href="https://uri.primo.exlibrisgroup.com/nde/citationlinker?lang=en&vid=01URI_INST%3A01URI_INST_NDE" target="_blank">Search by Citation</a></li>
-          <li><a href="https://uri.illiad.oclc.org/illiad/" target="_blank">ILL Request</a></li>
+        <button class="mobile-menu-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
+        <ul class="primo-nav" :class="{ 'mobile-open': mobileMenuOpen }">
+          <li><a href="https://uri.libguides.com/az/databases" target="_blank" @click="mobileMenuOpen = false">Databases @ URI</a></li>
+          <li><a href="https://uri.primo.exlibrisgroup.com/nde/jsearch?vid=01URI_INST:01URI_INST_NDE&lang=en" target="_blank" @click="mobileMenuOpen = false">Journal Search</a></li>
+          <li><a href="https://libkey.io/libraries/245/" target="_blank" @click="mobileMenuOpen = false">Get PDF By DOI/PMID</a></li>
+          <li><a href="https://uri.primo.exlibrisgroup.com/nde/citationlinker?lang=en&vid=01URI_INST%3A01URI_INST_NDE" target="_blank" @click="mobileMenuOpen = false">Search by Citation</a></li>
+          <li><a href="https://uri.illiad.oclc.org/illiad/" target="_blank" @click="mobileMenuOpen = false">ILL Request</a></li>
         </ul>
       </div>
     </nav>
@@ -126,11 +131,29 @@
         </div>
       </div>
       </div>
+
+    <div v-if="expandedRooms.length > 0" class="backdrop" @click="expandedRooms = []"></div>
+
+    <!-- Custom Modal using Teleport to body -->
+    <Teleport to="body">
+      <div v-if="showModal" class="custom-modal-backdrop" @click="closeModal">
+        <div class="custom-modal" @click.stop>
+          <div class="modal-header">
+            <h3>{{ modalTitle }}</h3>
+            <button class="modal-close" @click="closeModal">×</button>
+          </div>
+          <div class="modal-body" v-html="modalMessage"></div>
+          <div class="modal-footer">
+            <button class="modal-button" @click="closeModal">OK</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 
-      <div v-if="expandedRooms.length > 0" class="backdrop" @click="expandedRooms = []"></div>
+</template>
 
-</template><script setup>
+<script setup>
 import { useTokenManager } from './composables/useAuth.js'
 
 // Use flexbox for timeline segments so they fill horizontally and stack correctly
@@ -151,7 +174,7 @@ function getBookingStyle(booking) {
     position: 'absolute',
     left: `${left}%`,
     width: `${width}%`,
-    background: isApiAvailability ? '#e74c3c' : '#27ae60',
+    background: isApiAvailability ? '#9e9e9e' : '#27ae60',
     borderRadius: '4px',
     height: '100%',
   };
@@ -310,6 +333,10 @@ const bookings = ref([])
 const loading = ref(true)
 const error = ref('')
 const expandedRooms = ref([])
+const mobileMenuOpen = ref(false)
+const showModal = ref(false)
+const modalTitle = ref('')
+const modalMessage = ref('')
 const selectedTimes = ref({})
 const duration = ref(60)
 const currentDate = ref(new Date())
@@ -453,14 +480,24 @@ const updateSelection = (roomId) => {
         selectedTimes.value[roomId] = startMin
         duration.value = endMin - startMin
       } else {
-        alert('Selected time is not available')
+        showCustomModal('Error', 'Selected time is not available')
       }
     } else {
-      alert('Invalid time range (30min-3hr)')
+      showCustomModal('Error', 'Invalid time range (30min-3hr)')
     }
   }
 }
 const dragging = ref(null)
+
+const showCustomModal = (title, message) => {
+  modalTitle.value = title
+  modalMessage.value = message.replace(/\n/g, '<br>')
+  showModal.value = true
+}
+
+const closeModal = () => {
+  showModal.value = false
+}
 
 const fetchRooms = async () => {
   // Rooms will be set from bookings
@@ -1047,7 +1084,7 @@ const bookRoom = async (room) => {
   const endTimeStr = selectedEnds.value[room.id]
   
   if (!startTimeStr || !endTimeStr) {
-    alert('Please select start and end times')
+    showCustomModal('Error', 'Please select start and end times')
     return
   }
   
@@ -1111,23 +1148,38 @@ const bookRoom = async (room) => {
     console.log('Response:', responseText)
 
     if (response.ok) {
-      alert('✅ Booking Confirmed!\n\nPlease check your email for:\n• Confirmation details\n• Check-in instructions\n• Your confirmation code\n\nRemember: You must check in within 15 minutes of your reservation start time, or your booking will be cancelled.')
+      console.log('Booking successful, showing modal...')
+      // Clean up form and room state first
       fname.value = ''
       lname.value = ''
       email.value = ''
       termsAccepted.value[room.id] = false
-      delete selectedTimes.value[room.id] // Reset selection after booking
+      delete selectedTimes.value[room.id]
       delete selectedStarts.value[room.id]
       delete selectedEnds.value[room.id]
-      duration.value = 60 // reset to default
-      // Optionally refresh data
+      duration.value = 60
+      
+      // Close the expanded room
+      const index = expandedRooms.value.indexOf(room.id)
+      if (index > -1) {
+        expandedRooms.value.splice(index, 1)
+      }
+      
+      // Refresh bookings data
       fetchBookings()
+      
+      // Show modal AFTER everything else
+      setTimeout(() => {
+        showCustomModal('Thank you!', '✅ Booking Confirmed!\n\nPlease check your email for:\n• Confirmation details\n• Check-in instructions\n• Your confirmation code\n\nRemember: You must check in within 15 minutes of your reservation start time, or your booking will be cancelled.')
+      }, 100)
+      
+      console.log('After showCustomModal call')
     } else {
-      alert('Booking failed: ' + responseText)
+      showCustomModal('Error', 'Booking failed: ' + responseText)
     }
   } catch (error) {
     console.error('Booking error:', error)
-    alert('Booking error: ' + error.message)
+    showCustomModal('Error', 'Booking error: ' + error.message)
   }
 }
 
@@ -1249,7 +1301,7 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style>
 /* Primo NDE Header - Exact Replication */
 .primo-header {
   background-color: #ffffff;
@@ -1310,6 +1362,75 @@ onMounted(async () => {
 .primo-nav a:hover {
   color: #0056b3;
   text-decoration: underline;
+}
+
+.mobile-menu-toggle {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  z-index: 1002;
+}
+
+.hamburger-line {
+  width: 24px;
+  height: 3px;
+  background-color: #2c3e50;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .primo-header-container {
+    padding: 8px 15px;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  .primo-nav {
+    position: fixed;
+    top: 58px;
+    right: -100%;
+    width: 250px;
+    height: calc(100vh - 58px);
+    background-color: #ffffff;
+    flex-direction: column;
+    padding: 20px;
+    gap: 0;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+    transition: right 0.3s ease;
+    overflow-y: auto;
+  }
+
+  .primo-nav.mobile-open {
+    right: 0;
+  }
+
+  .primo-nav li {
+    width: 100%;
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .primo-nav li:last-child {
+    border-bottom: none;
+  }
+
+  .primo-nav a {
+    display: block;
+    width: 100%;
+    font-size: 16px;
+  }
+
+  #app {
+    margin-top: 70px;
+  }
 }
 
 #app {
@@ -1705,7 +1826,7 @@ h1 {
   color: #555;
   margin-top: 6px;
 }
-</style>
+
 /* Skeleton loading styles */
 .room-card.skeleton {
   pointer-events: none;
@@ -1749,3 +1870,121 @@ h1 {
     background-position: 200% 0;
   }
 }
+
+/* Custom Modal Styles */
+.custom-modal-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  z-index: 2000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  animation: fadeIn 0.2s ease;
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.custom-modal {
+  background: white !important;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  animation: slideIn 0.3s ease;
+  position: relative !important;
+}
+
+.modal-header {
+  background: #002D5B;
+  color: white;
+  padding: 20px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  color: white;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.modal-close:hover {
+  transform: scale(1.2);
+}
+
+.modal-body {
+  padding: 25px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #2c3e50;
+  text-align: left;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.modal-button {
+  background-color: #002D5B;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+}
+
+.modal-button:hover {
+  background-color: #001F3F;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+</style>
