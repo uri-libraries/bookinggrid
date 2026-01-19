@@ -154,7 +154,7 @@
 </template>
 
 <script setup>
-import { useTokenManager } from './composables/useAuth.js'
+import { useTokenManager } from './composables/useAuth'
 
 // Use flexbox for timeline segments so they fill horizontally and stack correctly
 function getBookingStyle(booking) {
