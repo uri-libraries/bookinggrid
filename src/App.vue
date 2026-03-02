@@ -134,6 +134,26 @@
 
     <div v-if="expandedRooms.length > 0" class="backdrop" @click="expandedRooms = []"></div>
 
+    <!-- Footer -->
+    <footer class="uri-footer">
+      <div class="footer-container">
+        <div class="footer-links">
+          <a href="https://web.uri.edu/library/about/hours/" target="_blank">Library Hours</a>
+          <a href="https://web.uri.edu/library/contact/" target="_blank">Contact Us</a>
+          <a href="https://web.uri.edu/library/help/reference-research-help/" target="_blank">Research Help</a>
+          <a href="https://web.uri.edu/library/services/" target="_blank">Services</a>
+          <a href="https://web.uri.edu/library/siteindex/" target="_blank">Site Index</a>
+        </div>
+        <div class="footer-info">
+          <p>Robert L. Carothers Library &amp; Learning Commons</p>
+          <p>15 Lippitt Road, Kingston, RI 02881</p>
+        </div>
+        <div class="footer-copyright">
+          <p>&copy; {{ new Date().getFullYear() }} <a href="https://uri.edu" target="_blank">University of Rhode Island</a>. All Rights Reserved.</p>
+        </div>
+      </div>
+    </footer>
+
     <!-- Custom Modal using Teleport to body -->
     <Teleport to="body">
       <div v-if="showModal" class="custom-modal-backdrop" @click="closeModal">
@@ -1985,6 +2005,82 @@ h1 {
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+/* URI Footer */
+.uri-footer {
+  background-color: #002D5B;
+  color: #ffffff;
+  padding: 40px 20px 30px;
+  margin-top: 60px;
+}
+
+.footer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px 40px;
+  margin-bottom: 30px;
+}
+
+.footer-links a {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: #7BAFD4;
+  text-decoration: underline;
+}
+
+.footer-info {
+  margin-bottom: 20px;
+}
+
+.footer-info p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #d0d0d0;
+}
+
+.footer-copyright {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 20px;
+}
+
+.footer-copyright p {
+  margin: 0;
+  font-size: 13px;
+  color: #b0b0b0;
+}
+
+.footer-copyright a {
+  color: #7BAFD4;
+  text-decoration: none;
+}
+
+.footer-copyright a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .footer-links {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .uri-footer {
+    padding: 30px 15px 20px;
   }
 }
 </style>
