@@ -67,7 +67,7 @@
 
 
       <div v-if="filteredSortedRooms.length === 0" class="no-rooms">No rooms available for this date.</div>
-      <div v-for="room in filteredSortedRooms" :key="room.id" class="room-card" :class="{ expanded: expandedRooms.includes(room.id) }" @click="toggleExpanded(room.id)">
+      <div v-for="room in filteredSortedRooms" :key="room.id" class="room-card" :class="{ expanded: expandedRooms.includes(room.id), closing: closingRooms.includes(room.id) }" @click="toggleExpanded(room.id)">
         <div v-if="isRoomAvailableNow(room)" class="availability-pill">
           <span class="green-dot"></span>Available Now
         </div>
@@ -132,7 +132,9 @@
       </div>
       </div>
 
-    <div v-if="expandedRooms.length > 0" class="backdrop" @click="expandedRooms = []"></div>
+    <Transition name="fade">
+      <div v-if="expandedRooms.length > 0" class="backdrop" @click="closeAllExpanded"></div>
+    </Transition>
 
     <!-- Footer -->
     <footer class="uri-footer">
@@ -353,6 +355,7 @@ const bookings = ref([])
 const loading = ref(true)
 const error = ref('')
 const expandedRooms = ref([])
+const closingRooms = ref([])
 const mobileMenuOpen = ref(false)
 const showModal = ref(false)
 const modalTitle = ref('')
@@ -1077,26 +1080,19 @@ const isRoomAvailableNow = (room) => {
   if (currentTime < openStart || currentTime > openEnd) return false
   
   // Check if there's an available segment covering now (use merged segments)
-  if (room.availability && Array.isArray(room.availability)) {
+  if (room.availability && Array.isArray(room.availability) && room.availability.length > 0) {
     const mergedSegments = mergeAdjacentSegments(room.availability)
-    return mergedSegments.some(seg => {
-      const start = new Date(seg.from || seg.start)
-      const end = new Date(seg.to || seg.end)
-      const startTime = start.getHours() * 60 + start.getMinutes()
-      const endTime = end.getHours() * 60 + end.getMinutes()
-      return currentTime >= startTime && currentTime < endTime
+    const isAvailable = mergedSegments.some(seg => {
+      const startTime = parseTime(seg.from || seg.start)
+      const endTime = parseTime(seg.to || seg.end)
+      const inRange = currentTime >= startTime && currentTime < endTime
+      return inRange
     })
+    return isAvailable
   }
   
-  // Fallback: if no availability data, check if no bookings cover now
-  const bookings = getBookingsForRoom(room.id)
-  return !bookings.some(booking => {
-    const start = new Date(booking.fromDate)
-    const end = new Date(booking.toDate)
-    const startTime = start.getHours() * 60 + start.getMinutes()
-    const endTime = end.getHours() * 60 + end.getMinutes()
-    return currentTime >= startTime && currentTime < endTime
-  })
+  // Fallback: if no availability data, assume available if within open hours
+  return true
 }
 
 const bookRoom = async (room) => {
@@ -1301,13 +1297,28 @@ const capacities = computed(() => {
 const toggleExpanded = (id) => {
   const index = expandedRooms.value.indexOf(id)
   if (index > -1) {
-    expandedRooms.value.splice(index, 1)
-    delete selectedTimes.value[id] // Reset selection for this room when closing modal
-    delete selectedStarts.value[id]
-    delete selectedEnds.value[id]
+    // Add to closing state for animation
+    closingRooms.value.push(id)
+    // After animation completes, remove from both arrays
+    setTimeout(() => {
+      expandedRooms.value.splice(expandedRooms.value.indexOf(id), 1)
+      closingRooms.value.splice(closingRooms.value.indexOf(id), 1)
+      delete selectedTimes.value[id]
+      delete selectedStarts.value[id]
+      delete selectedEnds.value[id]
+    }, 250)
   } else {
     expandedRooms.value.push(id)
   }
+}
+
+const closeAllExpanded = () => {
+  // Close all expanded rooms with animation
+  expandedRooms.value.forEach(id => {
+    if (!closingRooms.value.includes(id)) {
+      toggleExpanded(id)
+    }
+  })
 }
 
 onMounted(async () => {
@@ -1692,13 +1703,13 @@ h1 {
   margin: 16px;
   width: 300px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transition: transform 0.2s, width 0.3s, height 0.3s;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
   cursor: pointer;
   position: relative;
 }
 
 .room-card:hover {
-  transform: scale(1.05);
+  transform: scale(1.02);
 }
 
 .room-card.expanded {
@@ -1716,6 +1727,33 @@ h1 {
   border-radius: 16px;
   padding: 32px;
   overflow: auto;
+  animation: expandCard 0.3s ease forwards;
+}
+
+@keyframes expandCard {
+  from {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.room-card.expanded.closing {
+  animation: collapseCard 0.25s ease forwards;
+}
+
+@keyframes collapseCard {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
 }
 
 .backdrop {
@@ -1726,6 +1764,23 @@ h1 {
   height: 100%;
   background: rgba(0,0,0,0.5);
   z-index: 1000;
+  animation: fadeIn 0.2s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Vue transition classes for backdrop */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .timeline {
