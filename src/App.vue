@@ -176,9 +176,9 @@
 </template>
 
 <script setup>
-import libraryLogo from '@/assets/library-logo.png'
-import headerImage from '@/assets/URI_11-16_21-3.jpg'
-import facadeImage from '@/assets/facade.jpg'
+import libraryLogo from '@/assets/library-logo.png?url'
+import headerImage from '@/assets/URI_11-16_21-3.jpg?url'
+import facadeImage from '@/assets/facade.jpg?url'
 import { useTokenManager } from './composables/useAuth'
 
 // Use flexbox for timeline segments so they fill horizontally and stack correctly
