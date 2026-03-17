@@ -1,7 +1,10 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-console.log('ENV:', import.meta.env);
+console.log('VITE_LIBCAL_BASE_URL:', process.env.VITE_LIBCAL_BASE_URL);
+console.log('VITE_LIBCAL_OAUTH_URL:', process.env.VITE_LIBCAL_OAUTH_URL);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('MODE:', process.env.MODE);
 
 // https://vitejs.dev/config/
 export default defineConfig({
