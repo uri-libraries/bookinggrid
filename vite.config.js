@@ -7,6 +7,9 @@ console.log('ENV:', import.meta.env);
 export default defineConfig({
   plugins: [vue()],
   base: '/',
+  build: {
+    assetsInlineLimit: 0 // Always copy assets, never inline as base64
+  },
   server: {
     proxy: {
       '/api': {
