@@ -5,7 +5,7 @@ const tokenExpiry: Ref<string | null> = ref(localStorage.getItem('tokenExpiry'))
 const isRefreshing: Ref<boolean> = ref(false)
 const initialized: Ref<boolean> = ref(false)
 
-const OAUTH_URL = '/oauth/token'
+const OAUTH_URL = import.meta.env.VITE_LIBCAL_OAUTH_URL || '/oauth/token'
 const CLIENT_ID = import.meta.env.VITE_LIBCAL_CLIENT_ID as string
 const CLIENT_SECRET = import.meta.env.VITE_LIBCAL_CLIENT_SECRET as string
 
