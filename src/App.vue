@@ -4,7 +4,7 @@
     <nav class="primo-header">
       <div class="primo-header-container">
         <div class="primo-logo">
-          <img src="/library-logo.png" alt="URI Library" />
+          <img :src="libraryLogo" alt="URI Library" />
         </div>
         <button class="mobile-menu-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
           <span class="hamburger-line"></span>
@@ -21,7 +21,7 @@
       </div>
     </nav>
     
-    <img src="/URI_11-16_21-3.jpg" alt="Library Header" class="header-image" />
+    <img :src="headerImage" alt="Library Header" class="header-image" />
     <h1>Reserve a Study Room at the Carothers Library</h1>
 
     <div class="header">
@@ -73,7 +73,7 @@
         </div>
         <h3>{{ room.name }}<span v-if="expandedRooms.includes(room.id)"> - {{ room.zone }} - {{ formatDate(currentDate) }}</span></h3>
         <div class="room-meta">Capacity: <strong>{{ room.capacity ?? 'Unknown' }}</strong></div>
-        <img v-if="expandedRooms.includes(room.id)" src="/facade.jpg" alt="Library Facade" class="modal-facade" @click.stop />
+        <img v-if="expandedRooms.includes(room.id)" :src="facadeImage" alt="Library Facade" class="modal-facade" @click.stop />
         <div class="timeline" style="position: relative; height: 24px;" @mousemove="updateHoverTime" @mouseleave="clearHoverTime" @click.stop="onTimelineClick(room, $event)">
           <div class="time-label" style="left: 0%;">{{ formatTimeLabel('start') }}</div>
           <div class="time-label" style="left: 50%;">{{ formatTimeLabel('middle') }}</div>
@@ -176,6 +176,9 @@
 </template>
 
 <script setup>
+import libraryLogo from '@/assets/library-logo.png'
+import headerImage from '@/assets/URI_11-16_21-3.jpg'
+import facadeImage from '@/assets/facade.jpg'
 import { useTokenManager } from './composables/useAuth'
 
 // Use flexbox for timeline segments so they fill horizontally and stack correctly
